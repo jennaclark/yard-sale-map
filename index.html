@@ -29,6 +29,7 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
     
+    /* Filter panel styling */
     #category-filters {
       position: absolute;
       top: 10px;
@@ -41,12 +42,39 @@
       max-width: 300px;
       max-height: 300px;
       overflow-y: auto;
+      transition: all 0.3s ease;
+    }
+    
+    /* Filter toggle button - stays at bottom when filters hidden */
+    #filter-toggle {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      z-index: 6;
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      cursor: pointer;
+      font-weight: bold;
+    }
+    
+    /* Collapsed state for filter container */
+    #category-filters.collapsed {
+      transform: translateY(-100%);
+      opacity: 0;
+      pointer-events: none;
     }
     
     .filter-title {
       margin-bottom: 10px;
       font-size: 16px;
       color: #555;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     
     .category-btn {
@@ -99,12 +127,32 @@
       font-style: italic;
       color: #666;
     }
+    
+    /* Media query for mobile devices */
+    @media (max-width: 768px) {
+      #category-filters {
+        max-width: 100%;
+        width: calc(100% - 20px);
+        max-height: 250px;
+      }
+      
+      /* Ensure info windows appear above the filter area on mobile */
+      .gm-style-iw {
+        margin-bottom: 40px !important;
+      }
+    }
   </style>
 </head>
 <body>
   <div id="map-container">
-    <div id="category-filters">
-      <h3 class="filter-title">Filter by items:</h3>
+    <!-- Always visible filter toggle button -->
+    <button id="filter-toggle">Filters</button>
+    
+    <div id="category-filters" class="collapsed">
+      <h3 class="filter-title">
+        Filter by items:
+        <span id="close-filters" style="cursor: pointer; font-size: 20px;">&times;</span>
+      </h3>
       <button class="category-btn active" data-category="all">Show All</button>
     </div>
     <div id="loading" class="loading">Loading yard sales...</div>
@@ -126,10 +174,43 @@
     let markers = [];
     let allCategories = new Set();
     let locations = [];
+    let infoWindows = []; // Track open info windows
     
     window.onload = () => {
       loadGoogleMapsScript();
+      setupFilterToggle();
     };
+    
+    function setupFilterToggle() {
+      const filterToggle = document.getElementById('filter-toggle');
+      const closeFilters = document.getElementById('close-filters');
+      const filterContainer = document.getElementById('category-filters');
+      
+      // Toggle button click
+      filterToggle.addEventListener('click', () => {
+        filterContainer.classList.toggle('collapsed');
+        
+        // Close any open info windows when showing filters
+        if (!filterContainer.classList.contains('collapsed')) {
+          infoWindows.forEach(iw => iw.close());
+          infoWindows = [];
+        }
+      });
+      
+      // Close button click
+      closeFilters.addEventListener('click', () => {
+        filterContainer.classList.add('collapsed');
+      });
+      
+      // Close filters when a filter is selected
+      filterContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('category-btn')) {
+          setTimeout(() => {
+            filterContainer.classList.add('collapsed');
+          }, 300);
+        }
+      });
+    }
     
     function loadGoogleMapsScript() {
       const script = document.createElement('script');
@@ -347,6 +428,17 @@
       const infoWindow = createInfoWindow(location);
       
       marker.addListener('click', () => {
+        // Close any open info windows first
+        infoWindows.forEach(iw => iw.close());
+        infoWindows = [infoWindow];
+        
+        // Always hide the filter panel when opening an info window
+        document.getElementById('category-filters').classList.add('collapsed');
+        
+        // Position the info window to avoid overlap with the filter button
+        const pixelOffset = new google.maps.Size(0, -35);
+        infoWindow.setOptions({ pixelOffset: pixelOffset });
+        
         infoWindow.open(map, marker);
       });
       
@@ -378,8 +470,10 @@
         </div>
       `;
       
+      // Configure info window to position slightly above marker to avoid filter button overlap
       return new google.maps.InfoWindow({
-        content: contentString
+        content: contentString,
+        pixelOffset: new google.maps.Size(0, -35)
       });
     }
     
