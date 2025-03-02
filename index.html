@@ -169,6 +169,7 @@
     
     const COLUMN_ADDRESS = 'At what address will you be having a yard sale? Please note we are only including sellers in the Oakley 45209 zip code.';
     const COLUMN_ITEMS = 'What categories of items will you have for sale?';
+    const COLUMN_TIMESTAMP = 'Timestamp'; // Assuming there's a timestamp column
     
     let map;
     let markers = [];
@@ -326,13 +327,38 @@
     function processData(data) {
       document.getElementById('loading').style.display = 'none';
       
-      locations = data.filter(entry => entry[COLUMN_ADDRESS] && entry[COLUMN_ADDRESS].trim() !== '');
+      // Filter out entries without an address
+      const validEntries = data.filter(entry => entry[COLUMN_ADDRESS] && entry[COLUMN_ADDRESS].trim() !== '');
       
-      if (locations.length === 0) {
+      if (validEntries.length === 0) {
         document.getElementById('loading').innerHTML = 'No yard sale locations found.';
         document.getElementById('loading').style.display = 'block';
         return;
       }
+      
+      // Handle duplicate addresses - keep only the newest entry
+      const addressMap = new Map();
+      
+      validEntries.forEach(entry => {
+        const address = entry[COLUMN_ADDRESS].trim();
+        
+        // If we have a timestamp column, use it to determine the newest entry
+        if (entry[COLUMN_TIMESTAMP]) {
+          const timestamp = new Date(entry[COLUMN_TIMESTAMP]).getTime();
+          
+          // If this address already exists in our map, only update if this entry is newer
+          if (!addressMap.has(address) || timestamp > addressMap.get(address).timestamp) {
+            entry.timestamp = timestamp;
+            addressMap.set(address, entry);
+          }
+        } else {
+          // If no timestamp column, just use the last entry in the CSV (assumes newer entries are at the bottom)
+          addressMap.set(address, entry);
+        }
+      });
+      
+      // Convert map back to array
+      locations = Array.from(addressMap.values());
       
       extractCategories();
       createCategoryFilters();
