@@ -1,123 +1,136 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Neighborhood Yard Sale Map</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oakley Community Yard Sale Map</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
     body {
       font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 16px;
-      max-width: 1200px;
-      margin: 0 auto;
+      line-height: 1.6;
     }
-    h1 {
-      color: #333;
-      margin-bottom: 10px;
-    }
-    #map {
+    
+    #map-container {
+      width: 100%;
       height: 500px;
+      position: relative;
+    }
+    
+    #map {
+      height: 100%;
       width: 100%;
       border-radius: 8px;
-      margin-top: 16px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
+    
     #category-filters {
-      margin: 16px 0;
-      padding: 12px;
-      background: #f8f8f8;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 5;
+      background: white;
+      padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      max-width: 300px;
+      max-height: 300px;
+      overflow-y: auto;
     }
+    
     .filter-title {
-      margin-top: 0;
       margin-bottom: 10px;
       font-size: 16px;
       color: #555;
     }
+    
     .category-btn {
       margin: 5px;
-      padding: 8px 12px;
+      padding: 6px 10px;
       background: #eee;
       border: 1px solid #ddd;
       border-radius: 20px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
       transition: all 0.2s ease;
     }
+    
     .category-btn:hover {
       background: #e0e0e0;
     }
+    
     .category-btn.active {
       background: #4285f4;
       color: white;
       border-color: #4285f4;
     }
+    
     .info-window {
       max-width: 300px;
     }
+    
     .info-window h3 {
       margin-top: 0;
       color: #4285f4;
     }
-    .footer {
-      margin-top: 20px;
-      font-size: 12px;
-      color: #666;
-      text-align: center;
+    
+    .info-window p {
+      margin: 8px 0;
     }
+    
+    .info-window .special-items {
+      margin-top: 8px;
+      font-style: italic;
+    }
+    
     .loading {
-      text-align: center;
-      padding: 20px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.8);
+      padding: 10px 15px;
+      border-radius: 4px;
       font-style: italic;
       color: #666;
     }
   </style>
 </head>
 <body>
-  <h1>Neighborhood Yard Sale Map</h1>
-  <p>Browse yard sales in your area and filter by what you're looking for!</p>
-  
-  <div id="category-filters">
-    <h3 class="filter-title">Filter by items for sale:</h3>
-    <button class="category-btn active" data-category="all">Show All</button>
-    <!-- Category buttons will be added here dynamically -->
-    <div style="margin-top: 12px; font-size: 13px; color: #666;">
-      Click on markers to see more details about each yard sale.
-    </div>
-  </div>
-  
   <div id="map-container">
+    <div id="category-filters">
+      <h3 class="filter-title">Filter by items:</h3>
+      <button class="category-btn active" data-category="all">Show All</button>
+    </div>
     <div id="loading" class="loading">Loading yard sales...</div>
     <div id="map"></div>
-  </div>
-  
-  <div class="footer">
-    <p>Made with Google Maps. Data from Community Yard Sale signup form.</p>
   </div>
 
   <script>
     const API_KEY = 'AIzaSyBuIJWoU-H_mxlaUJLhWHrGz_byuNu_1XA';
-    
-    // Google Sheet ID
-    const SHEET_ID = '13fY7TuhWJvMlibnnHW9Qw6MlXAMtRba3aGq7TpDUvpQ';
+    const SHEET_ID = '1IYX572w3pkKth5WkSCr5wgmLFmyFPATEoPRzEPqRIQY';
     const SHEET_GID = '1879054771';
+    const DEFAULT_LAT = 39.1651;
+    const DEFAULT_LNG = -84.4299;
+    const ZIP_CODE = '45209';
     
-    // Global variables
+    const COLUMN_ADDRESS = 'At what address will you be having a yard sale? Please note we are only including sellers in the Oakley 45209 zip code.';
+    const COLUMN_ITEMS = 'What categories of items will you have for sale?';
+    
     let map;
     let markers = [];
     let allCategories = new Set();
     let locations = [];
     
-    // Column names from your form (adjust these based on your actual form)
-    const COLUMN_NAME = 'Name';
-    const COLUMN_ADDRESS = 'Address';
-    const COLUMN_ITEMS = 'Items for sale';
-    const COLUMN_DESCRIPTION = 'Description';
-    const COLUMN_EMAIL = 'Email'; // We won't display this publicly
+    window.onload = () => {
+      loadGoogleMapsScript();
+    };
     
-    // Load the Google Maps script
     function loadGoogleMapsScript() {
       const script = document.createElement('script');
       script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
@@ -126,117 +139,112 @@
       document.head.appendChild(script);
     }
     
-    // Initialize the map
     function initMap() {
       map = new google.maps.Map(document.getElementById('map'), {
-        center: {lat: 37.7749, lng: -122.4194}, // Default center (San Francisco)
-        zoom: 12,
-        mapTypeControl: true,
-        streetViewControl: true,
-        fullscreenControl: true
+        center: {lat: DEFAULT_LAT, lng: DEFAULT_LNG},
+        zoom: 14,
+        fullscreenControl: true,
+        mapTypeControlOptions: {
+          position: google.maps.ControlPosition.TOP_RIGHT
+        }
       });
       
-      // Load data from Google Sheets
       loadSheetData();
     }
     
-    // Load data from Google Sheets
     function loadSheetData() {
-      // URL for published Google Sheet as CSV
       const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
       
       fetch(sheetUrl)
         .then(response => {
           if (!response.ok) {
-            throw new Error(`Failed to load spreadsheet: ${response.status}`);
+            throw new Error(`Failed to load spreadsheet: ${response.status} ${response.statusText}`);
           }
           return response.text();
         })
         .then(csv => {
+          if (!csv || csv.trim() === '') {
+            throw new Error("Empty spreadsheet data");
+          }
+          
           const data = parseCSV(csv);
           processData(data);
         })
         .catch(error => {
           console.error('Error loading spreadsheet data:', error);
           document.getElementById('loading').innerHTML = 
-            'Could not load yard sale data. Please check the spreadsheet sharing settings or try again later.';
-          // Use sample data for testing
-          useSampleData();
+            'Could not load yard sale data. Please try again later.';
         });
     }
     
-    // Parse CSV data
     function parseCSV(csv) {
       const lines = csv.split('\n');
       const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
       
-      return lines.slice(1).filter(line => line.trim() !== '').map(line => {
-        // Handle commas inside quoted fields
-        const values = [];
-        let inQuote = false;
-        let currentValue = '';
-        
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          
-          if (char === '"') {
-            inQuote = !inQuote;
-          } else if (char === ',' && !inQuote) {
-            values.push(currentValue);
-            currentValue = '';
-          } else {
-            currentValue += char;
-          }
+      const specialItemIndexes = headers.reduce((indexes, header, index) => {
+        if (header.includes('Special items') || 
+            header === 'antique' || 
+            header === 'or high-value items that might deserve special mention in our promotional materials.') {
+          indexes.push(index);
         }
-        
-        values.push(currentValue); // Add the last value
-        
-        const entry = {};
-        headers.forEach((header, index) => {
-          let value = values[index] || '';
-          value = value.replace(/"/g, '').trim();
-          entry[header] = value;
-        });
-        
-        return entry;
-      });
-    }
-    
-    // Use sample data for testing if the real data can't be loaded
-    function useSampleData() {
-      const sampleData = [
-        {
-          [COLUMN_NAME]: "Jane Smith",
-          [COLUMN_ADDRESS]: "123 Main St, San Francisco, CA",
-          [COLUMN_ITEMS]: "Furniture, Books, Toys",
-          [COLUMN_DESCRIPTION]: "Multi-family yard sale with lots of kids items and furniture.",
-          [COLUMN_EMAIL]: "jane@example.com"
-        },
-        {
-          [COLUMN_NAME]: "John Doe",
-          [COLUMN_ADDRESS]: "456 Oak Ave, San Francisco, CA",
-          [COLUMN_ITEMS]: "Electronics, Tools, Sporting Goods",
-          [COLUMN_DESCRIPTION]: "Moving sale! Everything must go. Tools, electronics, and sporting equipment.",
-          [COLUMN_EMAIL]: "john@example.com"
-        },
-        {
-          [COLUMN_NAME]: "Alice Johnson",
-          [COLUMN_ADDRESS]: "789 Pine St, San Francisco, CA",
-          [COLUMN_ITEMS]: "Clothing, Toys, Home Decor",
-          [COLUMN_DESCRIPTION]: "Seasonal cleanout! Children's clothes, toys, and home decorations.",
-          [COLUMN_EMAIL]: "alice@example.com"
-        }
-      ];
+        return indexes;
+      }, []);
       
-      processData(sampleData);
+      return lines.slice(1)
+        .filter(line => line.trim() !== '')
+        .map(line => {
+          const values = parseCSVLine(line);
+          
+          const entry = {};
+          headers.forEach((header, index) => {
+            let value = values[index] || '';
+            value = value.replace(/"/g, '').trim();
+            entry[header] = value;
+          });
+          
+          let specialItems = '';
+          specialItemIndexes.forEach(index => {
+            if (values[index] && values[index].trim() !== '') {
+              specialItems += values[index].trim() + ' ';
+            }
+          });
+          
+          specialItems = specialItems.trim()
+            .replace(/I agree\.?$/i, '')
+            .replace(/I agree to the terms\.?$/i, '')
+            .trim();
+          
+          entry.specialItems = specialItems;
+          
+          return entry;
+        });
     }
     
-    // Process data and add markers
+    function parseCSVLine(line) {
+      const values = [];
+      let inQuote = false;
+      let currentValue = '';
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+          inQuote = !inQuote;
+        } else if (char === ',' && !inQuote) {
+          values.push(currentValue);
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      
+      values.push(currentValue);
+      return values;
+    }
+    
     function processData(data) {
-      // Remove the loading message
       document.getElementById('loading').style.display = 'none';
       
-      // Store the data
       locations = data.filter(entry => entry[COLUMN_ADDRESS] && entry[COLUMN_ADDRESS].trim() !== '');
       
       if (locations.length === 0) {
@@ -245,17 +253,22 @@
         return;
       }
       
-      // Process categories first
+      extractCategories();
+      createCategoryFilters();
+      
+      locations.forEach((location, index) => {
+        geocodeAddress(location, index);
+      });
+    }
+    
+    function extractCategories() {
       locations.forEach(location => {
-        // Extract categories from the items for sale
         if (location[COLUMN_ITEMS]) {
           const categories = location[COLUMN_ITEMS].split(',')
             .map(cat => cat.trim())
             .filter(cat => cat !== '');
           
           location.categories = categories;
-          
-          // Add to set of all categories
           categories.forEach(category => {
             allCategories.add(category);
           });
@@ -263,21 +276,11 @@
           location.categories = [];
         }
       });
-      
-      // Create category filters
-      createCategoryFilters();
-      
-      // Geocode addresses and add markers
-      locations.forEach((location, index) => {
-        geocodeAddress(location, index);
-      });
     }
     
-    // Create category filter buttons
     function createCategoryFilters() {
       const filterContainer = document.getElementById('category-filters');
       
-      // Sort categories alphabetically
       Array.from(allCategories).sort().forEach(category => {
         const button = document.createElement('button');
         button.className = 'category-btn';
@@ -290,84 +293,101 @@
         filterContainer.appendChild(button);
       });
       
-      // Add event listener to "Show All" button
       document.querySelector('[data-category="all"]').addEventListener('click', (e) => {
         filterMarkers(e.target, 'all');
       });
     }
     
-    // Geocode an address
     function geocodeAddress(location, index) {
       const geocoder = new google.maps.Geocoder();
+      let address = formatAddress(location[COLUMN_ADDRESS].trim());
       
-      geocoder.geocode({ address: location[COLUMN_ADDRESS] }, (results, status) => {
+      geocoder.geocode({ address: address }, (results, status) => {
         if (status === 'OK' && results[0]) {
-          const position = results[0].geometry.location;
+          const addressComponents = results[0].address_components;
+          let isIn45209 = false;
           
-          // Add the geocoded location to our data
-          location.lat = position.lat();
-          location.lng = position.lng();
+          for (const component of addressComponents) {
+            if (component.types.includes('postal_code') && component.short_name === ZIP_CODE) {
+              isIn45209 = true;
+              break;
+            }
+          }
           
-          // Add a marker
-          addMarker(location, index);
-        } else {
-          console.error(`Geocoding failed for address: ${location[COLUMN_ADDRESS]}`);
+          if (isIn45209) {
+            const position = results[0].geometry.location;
+            location.lat = position.lat();
+            location.lng = position.lng();
+            addMarker(location, index);
+          }
         }
       });
     }
     
-    // Add a marker for a location
+    function formatAddress(address) {
+      if (!address.match(/\d{5}/) && !address.includes(ZIP_CODE)) {
+        address += address.endsWith(",") ? ` ${ZIP_CODE}` : `, ${ZIP_CODE}`;
+      }
+      
+      if (!address.toLowerCase().includes("cincinnati") && !address.toLowerCase().includes("oakley")) {
+        address += ", Oakley, Cincinnati, OH";
+      }
+      
+      return address;
+    }
+    
     function addMarker(location, index) {
       const marker = new google.maps.Marker({
         position: { lat: location.lat, lng: location.lng },
         map: map,
-        title: location[COLUMN_NAME],
+        title: `Yard Sale at ${location[COLUMN_ADDRESS]}`,
         animation: google.maps.Animation.DROP
       });
       
-      // Format categories for display
-      const categoriesHtml = location.categories.length > 0 
-        ? `<p><strong>Items for sale:</strong> ${location.categories.join(', ')}</p>`
-        : '';
-      
-      // Create info window content
-      const contentString = `
-        <div class="info-window">
-          <h3>${location[COLUMN_NAME]}</h3>
-          <p><strong>Address:</strong> ${location[COLUMN_ADDRESS]}</p>
-          ${categoriesHtml}
-          <p>${location[COLUMN_DESCRIPTION] || ''}</p>
-        </div>
-      `;
-      
-      const infoWindow = new google.maps.InfoWindow({
-        content: contentString
-      });
+      const infoWindow = createInfoWindow(location);
       
       marker.addListener('click', () => {
         infoWindow.open(map, marker);
       });
       
-      // Store category data with the marker
       marker.categories = location.categories;
-      
-      // Add to our markers array
       markers.push(marker);
       
-      // Adjust map to fit all markers
       if (markers.length === locations.length) {
         fitMapToBounds();
       }
     }
     
-    // Filter markers by category
+    function createInfoWindow(location) {
+      const categoriesHtml = location.categories.length > 0 
+        ? `<p><strong>Items for sale:</strong> ${location.categories.join(', ')}</p>`
+        : '';
+      
+      const specialItemsHtml = location.specialItems && 
+                             location.specialItems.trim() !== '' && 
+                             !location.specialItems.match(/^I agree/i)
+        ? `<p class="special-items"><strong>Special items:</strong> ${location.specialItems.trim()}</p>`
+        : '';
+      
+      const contentString = `
+        <div class="info-window">
+          <h3>${location[COLUMN_ADDRESS]}</h3>
+          ${categoriesHtml}
+          ${specialItemsHtml}
+          <p><a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(location[COLUMN_ADDRESS])}" target="_blank">Get Directions</a></p>
+        </div>
+      `;
+      
+      return new google.maps.InfoWindow({
+        content: contentString
+      });
+    }
+    
     function filterMarkers(clickedButton, category) {
-      // Update button states
       const buttons = document.querySelectorAll('.category-btn');
       buttons.forEach(btn => btn.classList.remove('active'));
       clickedButton.classList.add('active');
       
-      // Filter markers
       markers.forEach(marker => {
         if (category === 'all') {
           marker.setVisible(true);
@@ -376,11 +396,9 @@
         }
       });
       
-      // Adjust map to fit visible markers
       fitMapToBounds();
     }
     
-    // Fit map to bounds of all markers
     function fitMapToBounds() {
       if (markers.length === 0) return;
       
@@ -397,7 +415,6 @@
       if (visibleMarkers > 0) {
         map.fitBounds(bounds);
         
-        // Adjust zoom if there's only one marker
         if (visibleMarkers === 1) {
           google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
             map.setZoom(15);
@@ -405,9 +422,6 @@
         }
       }
     }
-    
-    // Load the Google Maps script when the page loads
-    window.onload = loadGoogleMapsScript;
   </script>
 </body>
 </html>
