@@ -11,22 +11,26 @@
       box-sizing: border-box;
     }
     
-    body {
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
       font-family: Arial, sans-serif;
       line-height: 1.6;
     }
     
     #map-container {
       width: 100%;
-      height: 500px;
+      height: 100vh; /* Use viewport height to take full screen */
       position: relative;
     }
     
     #map {
       height: 100%;
       width: 100%;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      position: absolute;
+      top: 0;
+      left: 0;
     }
     
     /* Filter panel styling */
@@ -40,7 +44,7 @@
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
       max-width: 300px;
-      max-height: 300px;
+      max-height: 80vh; /* Limit height on larger screens */
       overflow-y: auto;
       transition: all 0.3s ease;
     }
@@ -48,7 +52,7 @@
     /* Filter toggle button - stays at bottom when filters hidden */
     #filter-toggle {
       position: absolute;
-      bottom: 10px;
+      bottom: 20px;
       left: 10px;
       z-index: 6;
       background: #4285f4;
@@ -126,6 +130,7 @@
       border-radius: 4px;
       font-style: italic;
       color: #666;
+      z-index: 4;
     }
     
     /* Media query for mobile devices */
@@ -133,12 +138,17 @@
       #category-filters {
         max-width: 100%;
         width: calc(100% - 20px);
-        max-height: 250px;
+        max-height: 50vh; /* Limit height on mobile */
       }
       
       /* Ensure info windows appear above the filter area on mobile */
       .gm-style-iw {
         margin-bottom: 40px !important;
+      }
+
+      /* Move bottom controls up to avoid overlapping with native browser UI */
+      #filter-toggle {
+        bottom: 80px;
       }
     }
   </style>
@@ -180,7 +190,16 @@
     window.onload = () => {
       loadGoogleMapsScript();
       setupFilterToggle();
+      
+      // Handle screen resize to maintain full height
+      window.addEventListener('resize', adjustMapHeight);
+      adjustMapHeight();
     };
+    
+    function adjustMapHeight() {
+      // This ensures the map takes the full viewport height
+      document.getElementById('map-container').style.height = window.innerHeight + 'px';
+    }
     
     function setupFilterToggle() {
       const filterToggle = document.getElementById('filter-toggle');
@@ -228,6 +247,10 @@
         fullscreenControl: true,
         mapTypeControlOptions: {
           position: google.maps.ControlPosition.TOP_RIGHT
+        },
+        // Adjust Google Maps controls for better fullscreen positioning
+        zoomControlOptions: {
+          position: google.maps.ControlPosition.RIGHT_BOTTOM
         }
       });
       
