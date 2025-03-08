@@ -192,8 +192,9 @@
 
   <script>
     const API_KEY = 'AIzaSyBuIJWoU-H_mxlaUJLhWHrGz_byuNu_1XA';
-    const SHEET_ID = '1FjvQUeJgsnInIQdqAPLFYt0YSETc8KtKpYFVjDhLZAk';
+    const PRIMARY_SHEET_ID = '1FjvQUeJgsnInIQdqAPLFYt0YSETc8KtKpYFVjDhLZAk';
     const SHEET_GID = '0';
+    const BACKUP_SHEET_ID = '1cz9LywS8JKk8Sxx_NgWsUhSLCKY3Z65pX1q2zfEGey0';
     const DEFAULT_LAT = 39.1651;
     const DEFAULT_LNG = -84.4299;
     const ZIP_CODE = '45209';
@@ -278,8 +279,9 @@
       loadSheetData();
     }
     
-    function loadSheetData() {
-      const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
+    function loadSheetData(useBackup = false) {
+      const currentSheetId = useBackup ? BACKUP_SHEET_ID : PRIMARY_SHEET_ID;
+      const sheetUrl = `https://docs.google.com/spreadsheets/d/${currentSheetId}/export?format=csv&gid=${SHEET_GID}`;
       
       fetch(sheetUrl)
         .then(response => {
@@ -298,8 +300,16 @@
         })
         .catch(error => {
           console.error('Error loading spreadsheet data:', error);
-          document.getElementById('loading').innerHTML = 
-            'Could not load yard sale data. Please try again later.';
+          
+          // If this was the primary sheet and it failed, try the backup
+          if (!useBackup) {
+            console.log('Trying backup spreadsheet...');
+            loadSheetData(true);
+          } else {
+            // Both primary and backup failed
+            document.getElementById('loading').innerHTML = 
+              'Could not load yard sale data. Please try again later.';
+          }
         });
     }
     
